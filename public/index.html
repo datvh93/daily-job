@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Daily Kho · Kế hoạch nhập xuất</title>
+    <link rel="stylesheet" href="/style.css" />
+    <script defer src="/app.js"></script>
+  </head>
+  <body>
+    <div id="toast" role="status" aria-live="polite"></div>
+    <main id="auth" class="auth" hidden></main>
+    <div id="app" hidden>
+      <aside class="sidebar">
+        <a class="brand" href="/"
+          >▦
+          <span
+            >daily<span class="brand-light">kho</span
+            ><small>ĐIỀU PHỐI KHO HÀNG</small></span
+          ></a
+        >
+        <div class="nav-label">KHÔNG GIAN LÀM VIỆC</div>
+        <button class="nav active" data-view="plan">
+          ▤ <span>Kế hoạch hàng ngày</span></button
+        ><button class="nav" data-view="customs">
+          ▱ <span>Tờ khai C11</span></button
+        ><button class="nav" data-view="users" id="usersNav" hidden>
+          ♙ <span>Thành viên</span></button
+        ><button class="nav" data-view="audit" id="auditNav" hidden>
+          ◷ <span>Lịch sử thao tác</span>
+        </button>
+        <div class="sidebar-bottom">
+          <div class="local-note">
+            <span class="dot"></span> Dữ liệu lưu trên máy chủ
+          </div>
+          <div id="profile"></div>
+          <button id="logout" class="logout">Đăng xuất ↑</button>
+        </div>
+      </aside>
+      <div class="workspace">
+        <header class="topbar">
+          <span
+            >Không gian làm việc <span class="slash">/</span>
+            <strong id="breadcrumb">Kế hoạch hàng ngày</strong></span
+          ><span class="top-date" id="todayLabel"></span>
+        </header>
+        <section class="content">
+          <div class="page-heading">
+            <div>
+              <div class="eyebrow">VẬN HÀNH KHO HÀNG</div>
+              <h1 id="pageTitle">Kế hoạch hàng ngày</h1>
+              <p id="pageDescription">
+                Theo dõi từng lô hàng. Chủ động mọi tiến độ.
+              </p>
+            </div>
+            <div class="heading-actions" id="planActions">
+              <button class="btn" id="importBtn">↑ Nhập Excel</button
+              ><button class="btn primary" id="addBtn">＋ Tạo lô hàng</button>
+            </div>
+          </div>
+          <div id="planView">
+            <div class="stats" id="stats"></div>
+            <section class="panel">
+              <div class="panel-heading">
+                <div class="panel-title">
+                  <span class="dot"></span>
+                  <h2 id="listTitle">Danh sách lô hàng</h2>
+                  <span id="rowCount" class="count"></span>
+                </div>
+                <div class="panel-tools">
+                  <a class="text-link" href="/api/template">Tải mẫu Excel</a
+                  ><button class="btn small" id="exportBtn">
+                    ↓ Xuất Excel
+                  </button>
+                </div>
+              </div>
+              <div class="filters">
+                <div class="tabs" role="group" aria-label="Loại lô hàng">
+                  <button class="tab active" data-direction="">Tất cả</button
+                  ><button class="tab" data-direction="Nhập">↓ Hàng nhập</button
+                  ><button class="tab" data-direction="Xuất">
+                    ↑ Hàng xuất
+                  </button>
+                </div>
+                <div class="filter-inputs">
+                  <input
+                    id="search"
+                    type="search"
+                    placeholder="Tìm khách, tờ khai, BILL…"
+                    aria-label="Tìm kiếm"
+                  /><input
+                    type="date"
+                    id="dateFilter"
+                    aria-label="Ngày kế hoạch"
+                  /><select id="statusFilter" aria-label="Trạng thái">
+                    <option value="">Mọi trạng thái</option>
+                    <option>Chờ xử lý</option>
+                    <option>Đang xử lý</option>
+                    <option>Hoàn tất</option></select
+                  ><button class="btn small" id="refresh">↻ Tải lại</button>
+                </div>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead id="tableHead"></thead>
+                  <tbody id="tableBody"></tbody>
+                </table>
+              </div>
+              <div id="empty" class="empty" hidden>
+                <div class="empty-icon">▤</div>
+                <h3>Chưa có lô hàng</h3>
+                <p>Tạo lô hàng đầu tiên hoặc nhập kế hoạch từ Excel.</p>
+                <button class="btn primary" id="emptyAdd">
+                  ＋ Tạo lô hàng
+                </button>
+              </div>
+              <div class="table-footer">
+                <span id="tableSummary"></span
+                ><span>Giờ Việt Nam · GW tính bằng kg</span>
+              </div>
+            </section>
+            <div class="info-note">
+              ⓘ Quản lý Hàng nhập · Hàng xuất · Tờ khai C11 theo Excel. SL
+              kiện/GW ô gộp chỉ tính tại dòng đầu của nhóm; không phân bổ cho
+              từng tờ khai.
+            </div>
+          </div>
+          <div id="usersView" hidden></div>
+          <div id="auditView" hidden></div>
+          <footer>
+            DAILY KHO <span>Nhập xuất rõ ràng · Vận hành chủ động</span>
+          </footer>
+        </section>
+      </div>
+    </div>
+    <dialog id="editDialog">
+      <form id="shipmentForm">
+        <div class="dialog-header">
+          <div>
+            <div class="eyebrow">THÔNG TIN LÔ HÀNG</div>
+            <h2 id="editTitle">Tạo lô hàng</h2>
+          </div>
+          <button type="button" class="icon-btn close-dialog" aria-label="Đóng">
+            ×
+          </button>
+        </div>
+        <div class="dialog-body">
+          <div class="form-section">
+            01 <strong>Kế hoạch & chứng từ</strong>
+          </div>
+          <div id="mainFields" class="form-grid"></div>
+          <div class="form-section">
+            02 <strong>Hàng hóa & vận chuyển</strong>
+          </div>
+          <div id="cargoFields" class="form-grid"></div>
+          <details id="customsDetails">
+            <summary>03 &nbsp; Tờ khai C11 & tiến độ truyền</summary>
+            <div id="customsFields" class="form-grid"></div>
+          </details>
+          <p class="form-error" id="editError" role="alert"></p>
+        </div>
+        <div class="dialog-footer">
+          <button type="button" id="deleteBtn" class="btn danger">
+            Xóa lô hàng
+          </button>
+          <div class="spacer"></div>
+          <button type="button" class="btn close-dialog">Hủy</button
+          ><button class="btn primary" id="saveBtn">Lưu lô hàng</button>
+        </div>
+      </form>
+    </dialog>
+    <dialog id="importDialog">
+      <div class="dialog-header">
+        <div>
+          <div class="eyebrow">DỮ LIỆU EXCEL</div>
+          <h2>Nhập kế hoạch</h2>
+        </div>
+        <button class="icon-btn close-dialog" aria-label="Đóng">×</button>
+      </div>
+      <div class="dialog-body">
+        <p>
+          Dùng <strong>file Excel bố cục T10 hoặc mẫu của ứng dụng</strong>, tối
+          đa 5 MB và 1.000 bản ghi. Giữ số chứng từ ở dạng văn bản để không mất
+          số 0 đầu.
+        </p>
+        <p>
+          <a class="text-link" href="/api/template">↓ Tải mẫu Excel</a> · Xóa
+          dòng minh họa trước khi nhập.
+        </p>
+        <label class="upload"
+          >Chọn tệp Excel<input id="excelFile" type="file" accept=".xlsx"
+        /></label>
+        <div id="importPreview"></div>
+        <p class="form-error" id="importError" role="alert"></p>
+      </div>
+      <div class="dialog-footer">
+        <button class="btn close-dialog">Hủy</button
+        ><button id="confirmImport" class="btn primary" disabled>
+          Xác nhận nhập
+        </button>
+      </div>
+    </dialog>
+    <dialog id="userDialog">
+      <form id="userForm">
+        <div class="dialog-header">
+          <h2>Thêm thành viên</h2>
+          <button type="button" class="icon-btn close-dialog" aria-label="Đóng">
+            ×
+          </button>
+        </div>
+        <div class="dialog-body form-grid">
+          <label
+            >Họ tên<input
+              name="name"
+              required
+              maxlength="100"
+              autocomplete="name" /></label
+          ><label
+            >Tên đăng nhập<input
+              name="username"
+              required
+              pattern="[a-zA-Z0-9._-]{3,40}"
+              autocomplete="off" /></label
+          ><label
+            >Mật khẩu<input
+              name="password"
+              type="password"
+              required
+              minlength="10"
+              maxlength="200"
+              autocomplete="new-password" /></label
+          ><label
+            >Vai trò<select name="role">
+              <option value="staff">Nhân viên — xem, thêm, sửa</option>
+              <option value="viewer">Chỉ xem — xem và xuất Excel</option>
+              <option value="admin">Quản trị — toàn quyền</option>
+            </select></label
+          >
+          <p id="userError" class="form-error" role="alert"></p>
+        </div>
+        <div class="dialog-footer">
+          <button type="button" class="btn close-dialog">Hủy</button
+          ><button class="btn primary">Tạo tài khoản</button>
+        </div>
+      </form>
+    </dialog>
+  </body>
+</html>

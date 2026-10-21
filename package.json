@@ -1,0 +1,38 @@
+{
+  "name": "daily-job",
+  "version": "1.0.0",
+  "description": "Quản lý kế hoạch nhập xuất kho và tờ khai theo ngày",
+  "main": "index.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test test/*.test.js",
+    "test:e2e": "playwright test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/datvh93/daily-job.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/datvh93/daily-job/issues"
+  },
+  "homepage": "https://github.com/datvh93/daily-job#readme",
+  "dependencies": {
+    "exceljs": "^4.4.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.1",
+    "prettier": "^3.9.10"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "overrides": {
+    "exceljs": {
+      "uuid": "^11.1.1"
+    }
+  }
+}
