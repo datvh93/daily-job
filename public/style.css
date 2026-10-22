@@ -950,3 +950,6 @@ summary {
   border: 0;
   padding: 0;
 }
+.drive-panel {
+  margin-top: 24px;
+}

@@ -14,8 +14,12 @@ CREATE TABLE IF NOT EXISTS sessions(token TEXT PRIMARY KEY,user_id INTEGER NOT N
 CREATE TABLE IF NOT EXISTS shipments(id INTEGER PRIMARY KEY,data TEXT NOT NULL,version INTEGER NOT NULL DEFAULT 1,updated TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS audit(id INTEGER PRIMARY KEY,at TEXT NOT NULL,user_id INTEGER,action TEXT NOT NULL,record_id INTEGER,detail TEXT);
 `);
-const { fields, fail, validate } = require("./model");
+const { fields, fail, validate, classify } = require("./model");
 const { parseWorkbook, importRows } = require("./excel-import");
+const { monthlyWorkbook } = require("./reports");
+const { createDriveSync } = require("./drive-sync");
+const drive = createDriveSync(db, rows);
+drive.enqueue(rows());
 function password(p) {
   const salt = crypto.randomBytes(16).toString("hex");
   return salt + ":" + crypto.scryptSync(p, salt, 64).toString("hex");
@@ -38,12 +42,30 @@ function rows() {
     .all()
     .map((r) => ({
       ...JSON.parse(r.data),
+      ...classify(JSON.parse(r.data)),
       id: r.id,
       version: r.version,
       updated: r.updated,
     }));
 }
+function checkDraft(d) {
+  if (d.draftId) {
+    const draft = db
+      .prepare("SELECT data FROM shipments WHERE id=?")
+      .get(Number(d.draftId));
+    if (!draft) fail("Không tìm thấy bản nháp gốc");
+    const v = JSON.parse(draft.data);
+    if (
+      v.customsStage !== "Khai nháp" ||
+      v.customer !== d.customer ||
+      d.customsStage !== "Truyền"
+    )
+      fail("Bản nháp liên kết không khớp khách/công đoạn");
+  }
+}
 function insert(d, user) {
+  checkDraft(d);
+  drive.enqueue([d]);
   const r = db
     .prepare("INSERT INTO shipments(data,updated) VALUES(?,?)")
     .run(JSON.stringify(d), new Date().toISOString());
@@ -288,6 +310,43 @@ const server = http.createServer(async (req, res) => {
             .all(),
         );
       }
+      if (p.startsWith("/api/drive/")) {
+        if (user.role !== "admin" && p !== "/api/drive/status")
+          fail("Chỉ quản trị viên được cấu hình Google Drive", 403);
+        if (p === "/api/drive/status" && req.method === "GET")
+          return send(res, 200, drive.status());
+        if (p === "/api/drive/connect" && req.method === "POST")
+          return send(res, 200, { url: drive.connect(user) });
+        if (p === "/api/drive/callback" && req.method === "GET") {
+          await drive.callback(
+            user,
+            url.searchParams.get("state") || "",
+            url.searchParams.get("code") || "",
+          );
+          audit(user, "Kết nối Google Drive");
+          res.writeHead(302, { Location: "/" });
+          return res.end();
+        }
+        if (p === "/api/drive/retry" && req.method === "POST") {
+          drive.retry();
+          return send(res, 200, { ok: true });
+        }
+        if (p === "/api/drive/disconnect" && req.method === "POST") {
+          drive.disconnect();
+          audit(user, "Ngắt Google Drive");
+          return send(res, 200, { ok: true });
+        }
+      }
+      if (p === "/api/report" && req.method === "GET") {
+        const month = url.searchParams.get("month") || "";
+        const buffer = await monthlyWorkbook(rows(), month);
+        res.writeHead(200, {
+          "Content-Type":
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          "Content-Disposition": `attachment; filename="Daily-Kho-${month}.xlsx"`,
+        });
+        return res.end(buffer);
+      }
       if (p === "/api/shipments" && req.method === "GET")
         return send(res, 200, rows());
       if (
@@ -364,7 +423,9 @@ const server = http.createServer(async (req, res) => {
         const b = await body(req);
         if (!Array.isArray(b.rows) || !b.rows.length || b.rows.length > 1000)
           fail("Cần 1–1.000 dòng");
-        const result = importRows(db, b.rows, user);
+        const validated = b.rows.map(validate);
+        drive.enqueue(validated);
+        const result = importRows(db, validated, user);
         return send(res, 201, result);
       }
 
@@ -383,6 +444,12 @@ const server = http.createServer(async (req, res) => {
           );
         if (req.method === "DELETE") {
           if (user.role !== "admin") fail("Chỉ quản trị viên được xóa", 403);
+          if (rows().some((r) => r.draftId === String(id)))
+            fail(
+              "Bản nháp có hồ sơ truyền liên kết, không thể xóa trực tiếp.",
+              409,
+            );
+          drive.enqueue([JSON.parse(old.data)]);
           db.prepare("DELETE FROM shipments WHERE id=?").run(id);
           audit(user, "Xóa lô hàng", id, old.data);
         } else {
@@ -392,6 +459,16 @@ const server = http.createServer(async (req, res) => {
             sharedCells: JSON.parse(old.data).sharedCells,
             importKey: JSON.parse(old.data).importKey,
           });
+          checkDraft(d);
+          if (
+            rows().some((r) => r.draftId === String(id)) &&
+            (d.customsStage !== "Khai nháp" ||
+              d.customer !== JSON.parse(old.data).customer)
+          )
+            fail(
+              "Bản nháp đã liên kết hồ sơ truyền; không đổi khách hoặc công đoạn.",
+              409,
+            );
           const previous = JSON.parse(old.data);
           for (const key of ["packages", "weight"])
             if (
@@ -402,6 +479,7 @@ const server = http.createServer(async (req, res) => {
               fail(
                 "Giá trị dùng chung: hãy sửa tại ô đầu nhóm được ghi trong nguồn Excel.",
               );
+          drive.enqueue([JSON.parse(old.data), d]);
           db.prepare(
             "UPDATE shipments SET data=?,version=version+1,updated=? WHERE id=?",
           ).run(JSON.stringify(d), new Date().toISOString(), id);

@@ -21,6 +21,8 @@ services:
         value: "true"
       - key: SETUP_TOKEN
         generateValue: true
+      - key: DRIVE_ENCRYPTION_KEY
+        generateValue: true
     disk:
       name: daily-kho-data
       mountPath: /app/data

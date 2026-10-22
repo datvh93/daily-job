@@ -36,12 +36,16 @@ const labels = {
   transporter: "Truyền",
   transmittedBill: "BILL truyền",
   confirmTime: "Giờ confirm",
-  clearance: "Số thông quan",
+  clearance: "Số tờ khai truyền",
   transmitTime: "Giờ truyền",
   transmitStatus: "Trạng thái truyền",
-  customsStage: "Công đoạn C11",
+  customsStage: "Công đoạn tờ khai",
   excelSource: "Dòng Excel gốc",
   sharedCells: "Ô gộp dùng chung",
+  movement: "Luồng hàng",
+  declarant: "Bên mở tờ khai",
+  channel: "Luồng tờ khai",
+  draftId: "Liên kết bản nháp",
 };
 const roleNames = {
   admin: "Quản trị viên",
@@ -117,6 +121,7 @@ async function init() {
     await switchView("plan");
     $("#usersView").innerHTML = "";
     $("#auditView").innerHTML = "";
+    $("#reportsView").innerHTML = "";
   } catch (e) {
     toast(e.message);
   }
@@ -179,7 +184,7 @@ function render() {
     no = rows.filter((r) => r.direction === "Xuất");
   const statCards = [
     [
-      state.view === "customs" ? "Tổng bản ghi C11" : "Tổng lô hàng",
+      state.view === "customs" ? "Tổng hồ sơ tờ khai" : "Tổng lô hàng",
       total,
       state.view === "customs" ? "mục" : "lô",
       "▤",
@@ -250,7 +255,7 @@ function render() {
     : "Tạo lô hàng đầu tiên hoặc nhập kế hoạch từ Excel.";
   const customs = state.view === "customs";
   $("#listTitle").textContent = customs
-    ? "Tiến độ tờ khai C11"
+    ? "Tiến độ khai nháp & truyền"
     : "Danh sách lô hàng";
   const columns = customs
     ? [
@@ -268,6 +273,7 @@ function render() {
         "Thông quan",
         "Time truyền",
         "Trạng thái truyền",
+        "Luồng tờ khai",
         "Nguồn",
         "",
       ]
@@ -276,6 +282,8 @@ function render() {
         "Loại",
         "Số tờ khai",
         "Mã loại hình",
+        "Luồng hàng",
+        "Bên mở tờ khai",
         "INV / Hóa đơn",
         "BILL",
         "Ngày tờ khai",
@@ -314,12 +322,15 @@ function render() {
             "clearance",
             "transmitTime",
             "transmitStatus",
+            "channel",
           ]
             .map((k) => cell(r[k]))
             .join("") + source
         : `<td><span class="direction ${r.direction === "Xuất" ? "out" : ""}">${r.direction === "Nhập" ? "↓" : "↑"} ${esc(r.direction)}</span></td>` +
           cell(r.declaration, "mono") +
           cell(r.type) +
+          cell(r.movement) +
+          cell(r.declarant) +
           cell(r.invoice, "mono") +
           cell(r.bill, "mono") +
           cell(r.plannedDate ? dateText(r.plannedDate) : "") +
@@ -336,6 +347,27 @@ function render() {
   $$("[data-edit]").forEach(
     (b) => (b.onclick = () => edit(Number(b.dataset.edit))),
   );
+  if (customs && state.user.role !== "viewer")
+    $$("#tableBody tr").forEach((tr, i) => {
+      if (rows[i].customsStage === "Khai nháp") {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "btn small";
+        b.textContent = "Confirm truyền";
+        b.onclick = () => {
+          const d = rows[i];
+          edit();
+          state.edit = null;
+          state.linkDraft = d.id;
+          $("#shipmentForm [name=customer]").value = d.customer;
+          const stage = $("#shipmentForm [name=customsStage]");
+          stage.value = "Truyền";
+          stage.dispatchEvent(new Event("change"));
+          $("#shipmentForm [name=transmittedBill]").value = d.customsBill;
+        };
+        tr.lastElementChild.append(b);
+      }
+    });
 }
 const groups = {
   mainFields: [
@@ -344,6 +376,8 @@ const groups = {
     "customer",
     "declaration",
     "type",
+    "movement",
+    "declarant",
     "plannedDate",
     "invoice",
     "bill",
@@ -364,12 +398,27 @@ const groups = {
     "clearance",
     "transmitTime",
     "transmitStatus",
+    "channel",
   ],
 };
 function field(k, value) {
   let input;
   const required = ["date", "direction", "customer", "status"].includes(k);
-  if (["direction", "status", "customsStage"].includes(k)) {
+  if (["channel", "movement"].includes(k)) {
+    const values =
+      k === "channel"
+        ? ["", "Xanh", "Vàng", "Đỏ"]
+        : [
+            "",
+            "Nội địa → Kho",
+            "Nước ngoài → Kho",
+            "Kho → Nội địa",
+            "Kho → Nước ngoài",
+            "Kho → CFS",
+            "Kho → Nước ngoài / CFS",
+          ];
+    input = `<select name="${k}" aria-label="${labels[k]}">${values.map((v) => `<option value="${esc(v)}" ${v === value ? "selected" : ""}>${esc(v) || (k === "channel" ? "Chưa phân luồng" : "Theo đầu số tờ khai")}</option>`).join("")}</select>`;
+  } else if (["direction", "status", "customsStage"].includes(k)) {
     const opts =
       k === "customsStage"
         ? ["Khai nháp", "Truyền"]
@@ -380,10 +429,11 @@ function field(k, value) {
   } else if (k === "note")
     input = `<textarea name="${k}" maxlength="2000" rows="2">${esc(value)}</textarea>`;
   else
-    input = `<input name="${k}" type="${k === "date" || k === "plannedDate" ? "date" : ["packages", "weight", "slips"].includes(k) ? "number" : k.endsWith("Time") ? "time" : "text"}" value="${esc(value)}" ${required ? "required" : ""} ${["packages", "weight", "slips"].includes(k) ? `min="0" step="${k !== "weight" ? "1" : "any"}"` : 'maxlength="2000"'}>`;
+    input = `<input ${k === "declarant" ? "readonly" : ""} name="${k}" type="${k === "date" || k === "plannedDate" ? "date" : ["packages", "weight", "slips"].includes(k) ? "number" : k.endsWith("Time") ? "time" : "text"}" value="${esc(value)}" ${required ? "required" : ""} ${["packages", "weight", "slips"].includes(k) ? `min="0" step="${k !== "weight" ? "1" : "any"}"` : 'maxlength="2000"'}>`;
   return `<label>${labels[k]}${required ? " *" : ""}${input}</label>`;
 }
 function edit(id) {
+  state.linkDraft = null;
   state.edit = id ? state.rows.find((r) => r.id === id) : null;
   const isCustoms = state.edit
     ? state.edit.direction === "C11"
@@ -394,6 +444,7 @@ function edit(id) {
     customsStage: isCustoms ? state.direction || "Khai nháp" : "",
     status: "Chờ xử lý",
     pic: state.user.name,
+    customsPic: state.user.name,
     unit: "",
   };
   const read = state.user.role === "viewer";
@@ -432,6 +483,7 @@ function edit(id) {
               "clearance",
               "transmitTime",
               "transmitStatus",
+              "channel",
             ];
       $$("#customsFields label").forEach((l) => {
         const input = l.querySelector("input,select,textarea");
@@ -441,6 +493,45 @@ function edit(id) {
     };
     $("#shipmentForm [name=customsStage]").onchange = syncStage;
     setTimeout(syncStage, 0);
+  }
+  if (!isCustoms) {
+    const infer = () => {
+      const declaration = $("#shipmentForm [name=declaration]").value.trim(),
+        direction = $("#shipmentForm [name=direction]").value;
+      const prefix = /^\d+$/.test(declaration) ? declaration[0] : "";
+      const movement = $("#shipmentForm [name=movement]"),
+        who = $("#shipmentForm [name=declarant]");
+      who.value = "";
+      if (direction === "Nhập" && prefix === "3") {
+        movement.value = "Nội địa → Kho";
+        who.value = "Khách hàng";
+      } else if (direction === "Nhập" && prefix === "1") {
+        movement.value = "Nước ngoài → Kho";
+        who.value = "Kho";
+      } else if (direction === "Xuất" && prefix === "1") {
+        movement.value = "Kho → Nội địa";
+        who.value = "Khách hàng";
+      } else if (direction === "Xuất" && prefix === "5") {
+        if (!["Kho → Nước ngoài", "Kho → CFS"].includes(movement.value))
+          movement.value = "Kho → Nước ngoài / CFS";
+        who.value = "Kho";
+      }
+    };
+    $("#shipmentForm [name=declaration]").oninput = infer;
+    $("#shipmentForm [name=direction]").onchange = infer;
+    const outbound = () => {
+      const isOut = $("#shipmentForm [name=direction]").value === "Xuất";
+      for (const name of ["slips", "port", "cfs"]) {
+        const input = $(`#shipmentForm [name=${name}]`);
+        input.closest("label").hidden = !isOut;
+      }
+    };
+    $("#shipmentForm [name=direction]").onchange = () => {
+      infer();
+      outbound();
+    };
+    infer();
+    outbound();
   }
   let source = $("#sourceInfo");
   if (!source) {
@@ -483,6 +574,8 @@ $("#shipmentForm").onsubmit = async (e) => {
       if (data.customsStage === "Khai nháp") data.warehouse = data.customer;
       else data.transporter = data.customer;
     }
+    if (state.edit?.draftId) data.draftId = state.edit.draftId;
+    if (state.linkDraft) data.draftId = state.linkDraft;
     if (state.edit) data.version = state.edit.version;
     await api(
       "/api/shipments" + (state.edit ? "/" + state.edit.id : ""),
@@ -633,16 +726,19 @@ async function switchView(view) {
       : ["Tất cả", "↓ Hàng nhập", "↑ Hàng xuất"][i];
     b.classList.toggle("active", b.dataset.direction === state.direction);
   });
-  $("#addBtn").textContent = customs ? "＋ Tạo mục C11" : "＋ Tạo lô hàng";
-  $("#emptyAdd").textContent = customs ? "＋ Tạo mục C11" : "＋ Tạo lô hàng";
+  $("#addBtn").textContent = customs ? "＋ Tạo mục tờ khai" : "＋ Tạo lô hàng";
+  $("#emptyAdd").textContent = customs
+    ? "＋ Tạo mục tờ khai"
+    : "＋ Tạo lô hàng";
   $$("[data-view]").forEach((b) =>
     b.classList.toggle("active", b.dataset.view === view),
   );
   const title = {
     plan: "Kế hoạch hàng ngày",
-    customs: "Tờ khai C11",
+    customs: "Khai nháp & truyền",
     users: "Thành viên",
     audit: "Lịch sử thao tác",
+    reports: "Báo cáo & Google Drive",
   }[view];
   $("#pageTitle").textContent = $("#breadcrumb").textContent = title;
   $("#pageDescription").textContent = {
@@ -650,12 +746,15 @@ async function switchView(view) {
     customs: "Theo dõi nhận chứng từ, draft, xác nhận và thông quan.",
     users: "Phân quyền rõ ràng cho từng người trong đội ngũ.",
     audit: "Ghi nhận các thay đổi dữ liệu và tài khoản trên hệ thống.",
+    reports: "Báo cáo tháng và trạng thái cập nhật Excel lên Google Drive.",
   }[view];
   $("#planView").hidden = !["plan", "customs"].includes(view);
   $("#planActions").hidden = !["plan", "customs"].includes(view);
   $("#usersView").hidden = view !== "users";
   $("#auditView").hidden = view !== "audit";
-  if (view === "users") await renderUsers();
+  $("#reportsView").hidden = view !== "reports";
+  if (view === "reports") await renderReports();
+  else if (view === "users") await renderUsers();
   else if (view === "audit") await renderAudit();
   else render();
 }
@@ -755,5 +854,49 @@ async function renderAudit() {
   const rows = await api("/api/audit");
   $("#auditView").innerHTML =
     `<section class="panel"><div class="panel-heading"><h2>200 thao tác gần nhất</h2></div><div class="table-wrap"><table><thead><tr><th>Thời gian (VN)</th><th>Người thực hiện</th><th>Thao tác</th><th>Lô hàng</th><th>Chi tiết</th></tr></thead><tbody>${rows.map((r) => `<tr><td>${new Date(r.at).toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" })}</td><td>${esc(r.name) || "Khởi tạo"}</td><td>${esc(r.action)}</td><td>${r.record_id || "—"}</td><td class="audit-detail">${r.detail ? `<details><summary>Xem dữ liệu trước thay đổi</summary><pre>${esc(r.detail)}</pre></details>` : "—"}</td></tr>`).join("")}</tbody></table></div></section>`;
+}
+async function renderReports() {
+  const sync = await api("/api/drive/status"),
+    admin = state.user.role === "admin";
+  $("#reportsView").innerHTML =
+    `<section class="panel"><div class="panel-heading"><h2>Báo cáo tháng</h2></div><div class="dialog-body"><p>Chi tiết nhập/xuất, khai nháp, confirm truyền và tổng hợp theo ngày, khách hàng, PIC; tách số kiện theo đơn vị.</p><label>Chọn tháng <input id="reportMonth" type="month" value="${today().slice(0, 7)}"></label> <button class="btn primary" id="downloadMonth">Tải Excel báo cáo</button></div></section><section class="panel drive-panel"><div class="panel-heading"><h2>Google Drive</h2><button class="btn small" id="refreshDrive">Tải lại trạng thái</button></div><div class="dialog-body"><p>${sync.connected ? "Đã kết nối. Tự cập nhật một file mỗi tháng trong thư mục Daily Kho." : sync.configured ? "Chưa kết nối. Quản trị viên cần cấp quyền truy cập Google Drive." : "Chưa cấu hình Google Drive trên máy chủ. Báo cáo Excel vẫn tải được; dữ liệu chưa được gửi lên Google."}</p><p>Dữ liệu được lưu vào ứng dụng trước, rồi đồng bộ nền trong khoảng 10 giây khi Google hoạt động bình thường. Có lỗi sẽ thử lại. File chỉ nằm trong tài khoản Google đã kết nối, không tự công khai.</p>${admin ? `<button class="btn primary" id="connectDrive" ${!sync.configured ? "disabled" : ""}>${sync.connected ? "Kết nối lại" : "Kết nối Google Drive"}</button> ${sync.connected ? '<button class="btn" id="retryDrive">Thử đồng bộ lại</button> <button class="btn danger" id="disconnectDrive">Ngắt kết nối</button>' : ""}` : ""}<div class="table-wrap"><table><thead><tr><th>Tháng</th><th>Trạng thái</th><th>Đồng bộ gần nhất</th><th>Excel trên Drive</th><th>Lỗi</th></tr></thead><tbody>${sync.jobs.map((j) => `<tr><td>${j.month}</td><td>${j.pending ? (sync.connected ? "Chờ đồng bộ" : "Chưa kết nối") : "Đã đồng bộ"}</td><td>${j.synced_at ? new Date(j.synced_at).toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" }) : "—"}</td><td>${j.url ? `<a class="text-link" href="${esc(j.url)}" target="_blank" rel="noopener">Mở file</a>` : "—"}</td><td class="source-cell">${esc(j.error) || "—"}</td></tr>`).join("")}</tbody></table></div><p class="form-error" id="driveError" role="alert"></p></div></section>`;
+  $("#downloadMonth").onclick = () => {
+    const m = $("#reportMonth").value;
+    if (!m) {
+      toast("Chọn tháng báo cáo");
+      return;
+    }
+    location.href = "/api/report?month=" + encodeURIComponent(m);
+  };
+  $("#refreshDrive").onclick = () =>
+    renderReports().catch((e) => toast(e.message));
+  if (admin) {
+    $("#connectDrive").onclick = async () => {
+      try {
+        location.href = (await api("/api/drive/connect", "POST")).url;
+      } catch (e) {
+        $("#driveError").textContent = e.message;
+      }
+    };
+    if (sync.connected) {
+      $("#retryDrive").onclick = async () => {
+        try {
+          await api("/api/drive/retry", "POST");
+          toast("Đã yêu cầu thử lại. Tải lại trạng thái sau ít giây.");
+        } catch (e) {
+          $("#driveError").textContent = e.message;
+        }
+      };
+      $("#disconnectDrive").onclick = async () => {
+        if (!confirm("Ngắt đồng bộ? File trên Drive vẫn được giữ.")) return;
+        try {
+          await api("/api/drive/disconnect", "POST");
+          await renderReports();
+        } catch (e) {
+          $("#driveError").textContent = e.message;
+        }
+      };
+    }
+  }
 }
 init();

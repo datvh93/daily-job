@@ -75,6 +75,12 @@ test("Tài khoản, phân quyền, lô hàng, Excel, xung đột và lưu bền"
   const sc = (await req("/api/login", "POST", staff)).cookie,
     vc = (await req("/api/login", "POST", viewer)).cookie;
   assert.equal((await req("/api/users", "GET", null, sc)).status, 403);
+  assert.equal((await req("/api/drive/connect", "POST", {}, sc)).status, 403);
+  assert.equal(
+    (await req("/api/drive/disconnect", "POST", {}, vc)).status,
+    403,
+  );
+  assert.equal((await req("/api/drive/status", "GET", null, vc)).status, 200);
   const shipment = {
     date: "2026-10-21",
     direction: "Nhập",
@@ -123,6 +129,17 @@ test("Tài khoản, phân quyền, lô hàng, Excel, xung đột và lưu bền"
     200,
   );
   assert.equal((await req("/api/shipments/" + id, "PUT", row, sc)).status, 409);
+  const driveStatus = (await req("/api/drive/status", "GET", null, ac)).body;
+  assert.equal(driveStatus.connected, false);
+  assert.equal(driveStatus.jobs[0].month, "2026-10");
+  assert.equal(driveStatus.jobs[0].pending, true);
+  const reportResponse = await fetch(base + "/api/report?month=2026-10", {
+    headers: { cookie: vc },
+  });
+  assert.equal(reportResponse.status, 200);
+  const monthly = new ExcelJS.Workbook();
+  await monthly.xlsx.load(Buffer.from(await reportResponse.arrayBuffer()));
+  assert.equal(monthly.getWorksheet("Hàng nhập").rowCount, 2);
   const exportResponse = await fetch(base + "/api/export?date=2026-10-21", {
     headers: { cookie: vc },
   });

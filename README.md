@@ -25,6 +25,12 @@ Các biến tùy chọn:
 
 Ứng dụng hiện chạy trong môi trường phát triển, **chưa triển khai thành website công khai**. Đã có Dockerfile và cấu hình Render; xem [DEPLOY.md](DEPLOY.md) để kích hoạt dịch vụ HTTPS có ổ dữ liệu bền vững. Để nhiều người truy cập từ Internet, cần triển khai sau reverse proxy HTTPS với tên miền, ổ đĩa bền vững, sao lưu và cấu hình proxy giữ đúng Host/X-Forwarded-Proto. Tạo quản trị trước khi công khai. Chạy một tiến trình ứng dụng với SQLite trên ổ đĩa cục bộ; không chia sẻ SQLite qua ổ mạng.
 
+## Nghiệp vụ kho ngoại quan và Google Drive
+
+Ứng dụng phân loại bên mở tờ khai theo đầu số 3/1 cho nhập và 1/5 cho xuất; đích CFS/nước ngoài được chọn rõ ràng. Có luồng tờ khai Xanh/Vàng/Đỏ, tạo Confirm truyền từ bản nháp đã chọn, báo cáo tháng 8 sheet và hàng đợi tự cập nhật một file Excel mỗi tháng trên Google Drive.
+
+Xem [GOOGLE-DRIVE.md](GOOGLE-DRIVE.md) để cấu hình OAuth và kết nối tài khoản thật. Chưa kết nối Google thì chỉ lưu web và tải Excel thủ công; không được coi là đã đồng bộ Drive. Khuyến nghị 3 tài khoản staff và 1 admin quản lý.
+
 ## Chức năng
 
 - Lọc ngày (mặc định hôm nay theo giờ Việt Nam), nhập/xuất, trạng thái; tìm khách, chứng từ, PIC và các trường lô hàng.

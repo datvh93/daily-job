@@ -31,3 +31,7 @@ node -e 'const {DatabaseSync,backup}=require("node:sqlite"); const db=new Databa
 ```
 
 Bản sao trên cùng ổ đĩa chưa bảo vệ khỏi mất ổ; cần chuyển ra nơi khác. Excel xuất ra không chứa tài khoản và nhật ký, nên không thay thế sao lưu toàn bộ.
+
+## Kết nối Google Drive sau khi có URL HTTPS
+
+Làm theo [GOOGLE-DRIVE.md](GOOGLE-DRIVE.md) để cấu hình OAuth, APP_URL, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET và DRIVE_ENCRYPTION_KEY. Khóa mã hóa được blueprint mới tạo tự động; dịch vụ cũ cần thêm nếu chưa có. Không đưa bí mật lên GitHub. Sau khi kết nối thật, app tự cập nhật file báo cáo tháng trên tài khoản Google đã chọn.

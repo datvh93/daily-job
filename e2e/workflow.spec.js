@@ -36,7 +36,9 @@ test("Khởi tạo, nhập xuất lô hàng, Excel và giao diện di động", 
     .selectOption("Hoàn tất");
   await page.getByRole("button", { name: "Lưu lô hàng", exact: true }).click();
   await expect(page.locator("#tableBody")).toContainText("Hoàn tất");
-  await page.getByRole("button", { name: "Tờ khai C11", exact: false }).click();
+  await page
+    .getByRole("button", { name: "Khai nháp & truyền", exact: false })
+    .click();
   await expect(page.locator("#tableBody tr")).toHaveCount(0);
   await page.locator("#addBtn").click();
   await page.getByLabel("Tên khách *", { exact: true }).fill("SUNWA");
@@ -56,6 +58,28 @@ test("Khởi tạo, nhập xuất lô hàng, Excel và giao diện di động", 
   await expect(page.locator("#importPreview")).toContainText("2 dòng hợp lệ");
   await page.locator("#confirmImport").click();
   await expect(page.locator("#tableBody tr")).toHaveCount(2);
+  await page
+    .getByRole("button", { name: "Confirm truyền", exact: true })
+    .first()
+    .click();
+  await page.getByLabel("Giờ confirm", { exact: true }).fill("14:24");
+  await page
+    .getByLabel("Số tờ khai truyền", { exact: true })
+    .fill("00108742005960");
+  await page.getByLabel("Giờ truyền", { exact: true }).fill("14:30");
+  await page.getByLabel("Luồng tờ khai", { exact: true }).selectOption("Vàng");
+  await page.getByRole("button", { name: "Lưu lô hàng", exact: true }).click();
+  await expect(page.locator("#tableBody")).toContainText("Vàng");
+  await page.locator("[data-view=reports]").click();
+  await expect(page.locator("#reportsView")).toContainText(
+    "Chưa cấu hình Google Drive",
+  );
+  await expect(page.locator("#connectDrive")).toBeDisabled();
+  const reportDownload = page.waitForEvent("download");
+  await page.locator("#downloadMonth").click();
+  expect((await reportDownload).suggestedFilename()).toMatch(
+    /^Daily-Kho-.*xlsx$/,
+  );
   await page.getByRole("button", { name: "Thành viên", exact: false }).click();
   await page
     .getByRole("button", { name: "Thêm thành viên", exact: false })

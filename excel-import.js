@@ -140,7 +140,18 @@ function original(ws, result) {
         d.excelSource = `${ws.name}!${ws.getCell(i, cols[0]).address}:${ws.getCell(i, cols.at(-1)).address}`;
         d.sharedCells = [...new Set(shared)].join("; ");
         const normalized = validate(d);
-        normalized.importKey = hash(JSON.stringify(normalized));
+        normalized.importKey = hash(
+          JSON.stringify(
+            Object.fromEntries(
+              Object.entries(normalized).filter(
+                ([key]) =>
+                  !["movement", "declarant", "channel", "draftId"].includes(
+                    key,
+                  ),
+              ),
+            ),
+          ),
+        );
         result.rows.push(normalized);
       } catch (e) {
         result.errors.push(`${ws.name}, dòng ${i}, ${block}: ${e.message}`);
@@ -154,6 +165,8 @@ function flat(ws, result) {
     "Số tờ khai CFS": "cfs",
     "Khách nhập": "warehouse",
     "Giờ nhận": "receivedTime",
+    "Số thông quan": "clearance",
+    "Công đoạn C11": "customsStage",
   };
   ws.getRow(1).eachCell((c, i) => {
     const key =

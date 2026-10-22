@@ -23,7 +23,9 @@
         <button class="nav active" data-view="plan">
           ▤ <span>Kế hoạch hàng ngày</span></button
         ><button class="nav" data-view="customs">
-          ▱ <span>Tờ khai C11</span></button
+          ▱ <span>Khai nháp & truyền</span></button
+        ><button class="nav" data-view="reports">
+          ▤ <span>Báo cáo &amp; Google Drive</span></button
         ><button class="nav" data-view="users" id="usersNav" hidden>
           ♙ <span>Thành viên</span></button
         ><button class="nav" data-view="audit" id="auditNav" hidden>
@@ -120,11 +122,12 @@
               </div>
             </section>
             <div class="info-note">
-              ⓘ Quản lý Hàng nhập · Hàng xuất · Tờ khai C11 theo Excel. SL
-              kiện/GW ô gộp chỉ tính tại dòng đầu của nhóm; không phân bổ cho
+              ⓘ Quản lý Hàng nhập · Hàng xuất · Khai nháp & truyền theo Excel.
+              SL kiện/GW ô gộp chỉ tính tại dòng đầu của nhóm; không phân bổ cho
               từng tờ khai.
             </div>
           </div>
+          <div id="reportsView" hidden></div>
           <div id="usersView" hidden></div>
           <div id="auditView" hidden></div>
           <footer>
@@ -154,7 +157,7 @@
           </div>
           <div id="cargoFields" class="form-grid"></div>
           <details id="customsDetails">
-            <summary>03 &nbsp; Tờ khai C11 & tiến độ truyền</summary>
+            <summary>03 &nbsp; Khai nháp & truyền & tiến độ truyền</summary>
             <div id="customsFields" class="form-grid"></div>
           </details>
           <p class="form-error" id="editError" role="alert"></p>
